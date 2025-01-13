@@ -1,148 +1,152 @@
 import sys
 import pygame
-import random
+import os
+import pygame
 
-# Intializing PyGame Engine
+# Ensure compatibility
+base_path = os.path.dirname(__file__)
+
+# Initialize Pygame Engine
 pygame.init()
 
-# Defining Constants
-game_width = 1200
-game_height = 600
-fps = 60
-black_color = (0, 0, 0)
-green_color = (0, 255, 0)
+# Constants
+SCREEN_WIDTH = 1200
+SCREEN_HEIGHT = 600
+FPS = 60
+COLORS = {
+    "black": (0, 0, 0),
+    "green": (0, 255, 0),
+}
 
-# Initializing Images
-try:
-    cactus = pygame.image.load("cactus_bricks.png")
-    fire = pygame.image.load("fire_bricks.png")
-    dragon = pygame.image.load("dragon.png")
-    flame = pygame.image.load("fireball.png")
-    mario = pygame.image.load("maryo.png")
-    start = pygame.image.load("start.png")
-    end = pygame.image.load("end.png")
-except pygame.error as e:
-    print(f"Error loading assets: {e}")
-    sys.exit()
-cactus_rect = cactus.get_rect()
-cactus_rect.left = 0
-fire_rect = fire.get_rect()
-fire_rect.left = 0
-fire_rect.top = game_height - fire_rect.height
+# Load Images with Error Handling
+def load_image(file):
+    try:
+        return pygame.image.load(file)
+    except pygame.error as e:
+        print(f"Error loading {file}: {e}")
+        sys.exit()
 
-font = pygame.font.SysFont("forte", 20)
+IMG_CACTUS = load_image(os.path.join(base_path, "cactus_bricks.png"))
+IMG_FIRE = load_image(os.path.join(base_path, "fire_bricks.png"))
+IMG_FLAME = load_image(os.path.join(base_path, "fireball.png"))
+IMG_MARIO = load_image(os.path.join(base_path, "maryo.png"))
+IMG_START= load_image(os.path.join(base_path, "start.png"))
+IMG_END = load_image(os.path.join(base_path, "end.png"))
+IMG_HEART = load_image(os.path.join(base_path, "heart.png"))
+IMG_DRAGON = load_image(os.path.join(base_path, "dragon.png"))
 
-canvas = pygame.display.set_mode((game_width, game_height))
-pygame.display.set_caption("High Seas Mario Game")
+# Screen Setup
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("High Seas Mario")
 
-# Intializing Conditions
+# Clock for FPS Management
 clock = pygame.time.Clock()
-level = 1
-score = 0
 
+# Fonts
+FONT = pygame.font.SysFont("forte", 20)
 
-class Topscore:
+# High Score Tracker
+class HighScore:
     def __init__(self):
         self.high_score = 0
 
-    def update(self, score):
-        if score > self.high_score:
-            self.high_score = score
-        return self.high_score
+    def update(self, current_score):
+        if current_score > self.high_score:
+            self.high_score = current_score
 
-
-topscore = Topscore()
-
-
+# Dragon Class
 class Dragon:
-    velocity = level * 2
-
     def __init__(self):
-        self.image = dragon
+        self.image = IMG_DRAGON
         self.rect = self.image.get_rect()
         self.rect.width -= 10
         self.rect.height -= 10
-        self.rect.top = game_height // 2
-        self.rect.right = game_width
-        self.up = True
-        self.down = False
+        self.rect.top = SCREEN_HEIGHT // 2
+        self.rect.right = SCREEN_WIDTH
+        self.movement_speed = 2
+        self.moving_up = True
 
-    def update(self):
+    def update(self, level):
+        self.movement_speed = level * 2
         if self.rect.top <= cactus_rect.bottom:
-            self.up = False
-            self.down = True
+            self.moving_up = False
         elif self.rect.bottom >= fire_rect.top:
-            self.up = True
-            self.down = False
+            self.moving_up = True
 
-        if self.up:
-            self.rect.top -= self.velocity
-        elif self.down:
-            self.rect.top += self.velocity
+        self.rect.top -= self.movement_speed if self.moving_up else -self.movement_speed
+        screen.blit(self.image, self.rect)
 
-        canvas.blit(self.image, self.rect)
-
-
+# Flame Class
 class Flame:
-    velocity = 5
-
     def __init__(self, x, y):
-        self.image = pygame.transform.scale(flame, (20, 20))
+        self.image = pygame.transform.scale(IMG_FLAME, (20, 20))
         self.rect = self.image.get_rect()
         self.rect.right = x
         self.rect.top = y
+        self.movement_speed = 5
 
     def update(self):
-        self.rect.left -= self.velocity
-        canvas.blit(self.image, self.rect)
+        self.rect.left -= self.movement_speed
+        screen.blit(self.image, self.rect)
 
-
+# Mario Class
 class Mario:
-    velocity = 5
-
     def __init__(self):
-        self.image = mario
+        self.image = IMG_MARIO
         self.rect = self.image.get_rect()
         self.rect.left = 20
-        self.rect.top = game_height // 2
-        self.up = False
-        self.down = True
+        self.rect.top = SCREEN_HEIGHT // 2
+        self.movement_speed = 5
+        self.moving_up = False
+        self.moving_down = False
 
     def update(self):
-        if self.up and self.rect.top > cactus_rect.bottom:
-            self.rect.top -= self.velocity
-        if self.down and self.rect.bottom < fire_rect.top:
-            self.rect.top += self.velocity
-        canvas.blit(self.image, self.rect)
+        if self.moving_up and self.rect.top > cactus_rect.bottom:
+            self.rect.top -= self.movement_speed
+        if self.moving_down and self.rect.bottom < fire_rect.top:
+            self.rect.top += self.movement_speed
+        screen.blit(self.image, self.rect)
 
-
-def game_over():
+# Game Over Function
+def game_over(high_score_tracker, score):
     pygame.mixer.music.stop()
-    print("Game Over! Restarting...")
-    topscore.update(score)
-    canvas.fill(black_color)
-    canvas.blit(end, end.get_rect(center=(game_width // 2, game_height // 2)))
+    high_score_tracker.update(score)
+    screen.fill(COLORS["black"])
+    screen.blit(
+        IMG_END, IMG_END.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    )
     pygame.display.update()
     pygame.time.wait(2000)
-    start_game()
 
+# Main Game Function
+def main_game():
+    # Game Variables
+    score = 0
+    level = 1
+    lives = 3
+    high_score_tracker = HighScore()
 
-def start_game():
-    global SCORE, LEVEL
+    # Obstacle Rectangles
+    global cactus_rect, fire_rect
+    cactus_rect = IMG_CACTUS.get_rect()
+    cactus_rect.left = 0
+    fire_rect = IMG_FIRE.get_rect()
+    fire_rect.left = 0
+    fire_rect.top = SCREEN_HEIGHT - fire_rect.height
 
-    SCORE = 0
-    LEVEL = 1
-
-    mario = Mario()
-    dragon = Dragon()
+    # Game Objects
+    player = Mario()
+    enemy = Dragon()
     flames = []
-    flame_timer = 0
 
     pygame.mixer.music.load("mario_theme.wav")
     pygame.mixer.music.play(-1)
 
-    while True:
-        canvas.fill(black_color)
+    flame_spawn_timer = 0
+    running = True
+
+    while running:
+        screen.fill(COLORS["black"])
 
         # Event Handling
         for event in pygame.event.get():
@@ -151,74 +155,79 @@ def start_game():
                 sys.exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
-                    mario.up = True
-                    mario.down = False
+                    player.moving_up = True
                 elif event.key == pygame.K_DOWN:
-                    mario.down = True
-                    mario.up = False
+                    player.moving_down = True
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_UP:
-                    mario.up = False
-                    mario.down = True
+                    player.moving_up = False
                 elif event.key == pygame.K_DOWN:
-                    mario.down = True
-                    mario.up = False
+                    player.moving_down = False
 
-        # Update Level and Obstacles
-        if SCORE in range(0, 10):
+        # Update Level Based on Score
+        if score < 10:
+            level = 1
             cactus_rect.bottom = 50
-            fire_rect.top = game_height - 50
-            LEVEL = 1
-        elif SCORE in range(10, 20):
+            fire_rect.top = SCREEN_HEIGHT - 50
+        elif score < 20:
+            level = 2
             cactus_rect.bottom = 100
-            fire_rect.top = game_height - 100
-            LEVEL = 2
-        elif SCORE > 20:
+            fire_rect.top = SCREEN_HEIGHT - 100
+        else:
+            level = 3
             cactus_rect.bottom = 150
-            fire_rect.top = game_height - 150
-            LEVEL = 3
+            fire_rect.top = SCREEN_HEIGHT - 150
 
-        # Dragon and Flame Logic
-        dragon.update()
-        flame_timer += 1
-        if random.randint(1, 50)>49:
-            flames.append(Flame(dragon.rect.left, dragon.rect.top + 30))
-            flame_timer = 0
+        # Update Enemy
+        enemy.update(level)
+
+        # Flame Logic
+        flame_spawn_timer += 1
+        if flame_spawn_timer > 50:
+            flames.append(Flame(enemy.rect.left, enemy.rect.top + 30))
+            flame_spawn_timer = 0
 
         for flame in flames[:]:
             flame.update()
             if flame.rect.right < 0:
                 flames.remove(flame)
-                SCORE += 1
+                score += 1
 
         # Collision Detection
-        for flame in flames:
-            if flame.rect.colliderect(mario.rect):
-                game_over()
+        for flame in flames[:]:
+            if flame.rect.colliderect(player.rect):
+                flames.remove(flame)
+                lives -= 1
+                if lives <= 0:
+                    game_over(high_score_tracker, score)
+                    return
 
-        # Check for Mario touching the ceiling or floor
-        if mario.rect.top <= cactus_rect.bottom or mario.rect.bottom >= fire_rect.top:
-            game_over()
+        if player.rect.top <= cactus_rect.bottom or player.rect.bottom >= fire_rect.top:
+            lives -= 1
+            if lives <= 0:
+                game_over(high_score_tracker, score)
+                return
 
-        # Draw Elements
-        canvas.blit(cactus, cactus_rect)
-        canvas.blit(fire, fire_rect)
+        # Draw Scene
+        screen.blit(IMG_CACTUS, cactus_rect)
+        screen.blit(IMG_FIRE, fire_rect)
+        player.update()
 
-        mario.update()
-
-        # Display Score and Level
-        score_text = font.render(f"Score: {SCORE}", True, green_color)
-        level_text = font.render(f"Level: {LEVEL}", True, green_color)
-        top_score_text = font.render(
-            f"Top Score: {topscore.high_score}", True, green_color
+        # Display HUD
+        score_text = FONT.render(f"Score: {score}", True, COLORS["green"])
+        level_text = FONT.render(f"Level: {level}", True, COLORS["green"])
+        top_score_text = FONT.render(
+            f"High Score: {high_score_tracker.high_score}", True, COLORS["green"]
         )
-        canvas.blit(score_text, (50, 10))
-        canvas.blit(level_text, (250, 10))
-        canvas.blit(top_score_text, (450, 10))
+        lives_text = FONT.render(f"Lives: {lives}", True, COLORS["green"])
+
+        screen.blit(score_text, (50, 10))
+        screen.blit(level_text, (250, 10))
+        screen.blit(top_score_text, (450, 10))
+        screen.blit(lives_text, (650, 10))
 
         pygame.display.update()
-        clock.tick(fps)
-
+        clock.tick(FPS)
 
 # Start the Game
-start_game()
+main_game()
